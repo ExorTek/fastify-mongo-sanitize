@@ -1,7 +1,7 @@
 'use strict';
 const fp = require('fastify-plugin');
 
-const ILLEGAL_PATTERNS = {
+const PATTERNS = {
   operators: /[\$]/g,
   dots: /\./g,
   specialChars: /[\\\/{}.(*+?|[\]^)]/g,
@@ -10,29 +10,31 @@ const ILLEGAL_PATTERNS = {
 };
 
 const DEFAULT_OPTIONS = {
-  replaceWith: '',
-  sanitizeObjects: ['body', 'params', 'query'],
-  enableLogs: false,
-  mode: 'auto', // auto, manual, route
-  skipRoutes: [], // ['/health', '/metrics']
-  customSanitizer: null,
-  recursive: true,
-  removeEmpty: false,
-  patterns: Object.values(ILLEGAL_PATTERNS), // {key: /pattern/}
-  allowedKeys: null, // ['key']
-  deniedKeys: null, // ['key']
+  replaceWith: '', // Replace matched patterns with this string
+  sanitizeObjects: ['body', 'params', 'query'], // Request properties to sanitize
+  enableLogs: false, // Enable logging fastify logs
+  mode: 'auto', // 'auto' | 'manual' | 'route' - 'auto' will sanitize all requests, 'manual' will require calling request.sanitize(), 'route' will sanitize only routes with routeOptions.sanitize = true
+  skipRoutes: [], // Routes to skip sanitization when mode = 'auto' or 'route' (e.g. ['/health', '/metrics'])
+  customSanitizer: null, // Custom sanitizer function to use instead of the built-in one
+  recursive: true, // Recursively sanitize nested objects and arrays
+  removeEmpty: false, // Remove empty strings and null values
+  patterns: Object.values(PATTERNS), // Patterns to match and replace in regex
+  allowedKeys: null, // Only allow these keys in objects
+  deniedKeys: null, // Deny these keys in objects
   stringOptions: {
-    trim: true, // trim string
-    lowercase: false, // convert string to lowercase
-    maxLength: null, // max length of string
+    // Options for string sanitization
+    trim: true, // Trim whitespace
+    lowercase: false, // Convert to lowercase
+    maxLength: null, // Maximum length of string
   },
   arrayOptions: {
-    filterNull: false, // remove null values from array
-    distinct: false, // remove duplicate values from array
+    // Options for array sanitization
+    filterNull: false, // Remove null values
+    distinct: false, // Remove duplicate values
   },
 };
 
-class SanitizeError extends Error {
+class FastifyMongoSanitizeError extends Error {
   constructor(message, type = 'generic') {
     super(message);
     this.name = 'FastifyMongoSanitizeError';
@@ -40,32 +42,19 @@ class SanitizeError extends Error {
   }
 }
 
-const typeChecks = {
-  isString: (value) => typeof value === 'string',
-  isPlainObject: (obj) => obj !== null && typeof obj === 'object' && Object.getPrototypeOf(obj) === Object.prototype,
-  isArray: Array.isArray,
-  isNumberOrBoolean: (value) => typeof value === 'number' || typeof value === 'boolean',
-  isDate: (value) => value instanceof Date,
-};
+const isString = (value) => typeof value === 'string';
+const isPlainObject = (obj) =>
+  obj !== null && typeof obj === 'object' && Object.getPrototypeOf(obj) === Object.prototype;
+const isArray = Array.isArray;
+const isPrimitive = (value) => typeof value === 'number' || typeof value === 'boolean';
+const isDate = (value) => value instanceof Date;
 
 const sanitizeString = (str, options = {}) => {
-  if (!typeChecks.isString(str)) {
-    return str;
-  }
+  if (!isString(str)) return str;
 
-  const {
-    replaceWith = '',
-    patterns = Object.values(ILLEGAL_PATTERNS),
-    trim = true,
-    lowercase = false,
-    maxLength,
-  } = options;
+  const { replaceWith = '', patterns = Object.values(PATTERNS), trim = true, lowercase = false, maxLength } = options;
 
-  let result = str;
-
-  patterns.forEach((pattern) => {
-    result = result.replace(pattern, replaceWith);
-  });
+  let result = patterns.reduce((acc, pattern) => acc.replace(pattern, replaceWith), str);
 
   if (trim) result = result.trim();
   if (lowercase) result = result.toLowerCase();
@@ -74,196 +63,154 @@ const sanitizeString = (str, options = {}) => {
   return result;
 };
 
-const sanitizeValue = (value, options = {}) => {
-  if (!value) return value;
-
-  if (typeChecks.isNumberOrBoolean(value)) {
-    return value;
-  }
-
-  if (typeChecks.isDate(value)) {
-    return value;
-  }
-
-  if (typeChecks.isPlainObject(value)) {
-    return sanitizeObject(value, options);
-  }
-
-  if (typeChecks.isArray(value)) {
-    return sanitizeArray(value, options);
-  }
-
-  if (typeChecks.isString(value)) {
-    return sanitizeString(value, options);
-  }
-
-  return value;
-};
-
 const sanitizeArray = (arr, options = {}) => {
-  if (!typeChecks.isArray(arr)) {
-    throw new SanitizeError('Input must be an array', 'type_error');
+  if (!isArray(arr)) {
+    throw new FastifyMongoSanitizeError('Input must be an array', 'type_error');
   }
 
   const { recursive = true, filterNull = false, distinct = false } = options;
-
   let result = arr.map((item) => sanitizeValue(item, { ...options, recursive }));
 
-  if (filterNull) {
-    result = result.filter((item) => item != null);
-  }
-
-  if (distinct) {
-    result = [...new Set(result)];
-  }
+  if (filterNull) result = result.filter((item) => item != null);
+  if (distinct) result = [...new Set(result)];
 
   return result;
 };
 
 const sanitizeObject = (obj, options = {}) => {
-  if (!typeChecks.isPlainObject(obj)) {
-    throw new SanitizeError('Input must be an object', 'type_error');
+  if (!isPlainObject(obj)) {
+    throw new FastifyMongoSanitizeError('Input must be an object', 'type_error');
   }
 
   const { replaceWith = '', recursive = true, removeEmpty = false, allowedKeys = null, deniedKeys = null } = options;
 
-  const result = {};
-
-  for (const [key, value] of Object.entries(obj)) {
-    if (allowedKeys && !allowedKeys.includes(key)) continue;
-    if (deniedKeys && deniedKeys.includes(key)) continue;
+  return Object.entries(obj).reduce((acc, [key, value]) => {
+    if (allowedKeys?.length && !allowedKeys.includes(key)) return acc;
+    if (deniedKeys?.length && deniedKeys.includes(key)) return acc;
 
     const sanitizedKey = sanitizeString(key, { replaceWith });
-
-    if (removeEmpty && sanitizedKey === '') continue;
+    if (removeEmpty && sanitizedKey === '') return acc;
 
     const sanitizedValue = sanitizeValue(value, { ...options, recursive });
+    if (removeEmpty && (sanitizedValue === '' || sanitizedValue == null)) return acc;
 
-    if (removeEmpty && (sanitizedValue === '' || sanitizedValue == null)) continue;
+    acc[sanitizedKey] = sanitizedValue;
+    return acc;
+  }, {});
+};
 
-    result[sanitizedKey] = sanitizedValue;
-  }
+const sanitizeValue = (value, options = {}) => {
+  if (!value) return value;
 
-  return result;
+  if (isPrimitive(value)) return value;
+  if (isDate(value)) return value;
+  if (isPlainObject(value)) return sanitizeObject(value, options);
+  if (isArray(value)) return sanitizeArray(value, options);
+  if (isString(value)) return sanitizeString(value, options);
+
+  return value;
 };
 
 const testString = (str) => {
-  if (!typeChecks.isString(str)) return false;
-  return Object.values(ILLEGAL_PATTERNS).some((pattern) => pattern.test(str));
+  if (!isString(str)) return false;
+  return Object.values(PATTERNS).some((pattern) => pattern.test(str));
 };
 
 const testArray = (arr) => {
-  if (!typeChecks.isArray(arr)) return false;
+  if (!isArray(arr)) return false;
   return arr.some((item) => {
-    if (typeChecks.isPlainObject(item)) return testObject(item);
-    if (typeChecks.isArray(item)) return testArray(item);
-    if (typeChecks.isString(item)) return testString(item);
+    if (isPlainObject(item)) return testObject(item);
+    if (isArray(item)) return testArray(item);
+    if (isString(item)) return testString(item);
     return false;
   });
 };
 
 const testObject = (obj) => {
-  if (!typeChecks.isPlainObject(obj)) return false;
-
+  if (!isPlainObject(obj)) return false;
   return Object.entries(obj).some(([key, value]) => {
-    const keyHasIllegalPattern = testString(key);
-    if (keyHasIllegalPattern) return true;
-
-    if (typeChecks.isPlainObject(value)) return testObject(value);
-    if (typeChecks.isArray(value)) return testArray(value);
-    if (typeChecks.isString(value)) return testString(value);
+    if (testString(key)) return true;
+    if (isPlainObject(value)) return testObject(value);
+    if (isArray(value)) return testArray(value);
+    if (isString(value)) return testString(value);
     return false;
   });
 };
 
-const sanitize = (input, options = {}) => {
-  try {
-    return sanitizeValue(input, options);
-  } catch (error) {
-    if (error instanceof SanitizeError) {
+const handleRequest = (request, options) => {
+  const { sanitizeObjects, customSanitizer, enableLogs } = options;
+
+  for (const key of sanitizeObjects) {
+    if (!request[key]) continue;
+
+    try {
+      const originalData = request[key];
+      const sanitizedData = customSanitizer ? customSanitizer(originalData) : sanitizeValue(originalData, options);
+
+      request[key] = sanitizedData;
+
+      if (enableLogs) {
+        request.log.info({
+          msg: `Sanitized ${key}`,
+          original: originalData,
+          sanitized: sanitizedData,
+        });
+      }
+    } catch (error) {
+      request.log.error({
+        msg: `Failed to sanitize ${key}`,
+        error: error.message,
+      });
       throw error;
     }
-    return input;
   }
 };
 
 const validateOptions = (options) => {
-  const validationRules = {
+  const validators = {
     replaceWith: (value) => typeof value === 'string',
-    sanitizeObjects: (value) => Array.isArray(value),
+    sanitizeObjects: isArray,
     enableLogs: (value) => typeof value === 'boolean',
-    mode: (value) => typeof value === 'string',
-    skipRoutes: (value) => Array.isArray(value),
+    mode: (value) => ['auto', 'manual', 'route'].includes(value),
+    skipRoutes: isArray,
     customSanitizer: (value) => typeof value === 'function' || value === null,
     recursive: (value) => typeof value === 'boolean',
     removeEmpty: (value) => typeof value === 'boolean',
-    patterns: (value) => Array.isArray(value),
-    allowedKeys: (value) => value === null || Array.isArray(value),
-    deniedKeys: (value) => value === null || Array.isArray(value),
-    stringOptions: (value) => typeof value === 'object',
-    arrayOptions: (value) => typeof value === 'object',
+    patterns: isArray,
+    allowedKeys: (value) => value === null || isArray(value),
+    deniedKeys: (value) => value === null || isArray(value),
+    stringOptions: (value) => value && typeof value === 'object',
+    arrayOptions: (value) => value && typeof value === 'object',
   };
 
-  for (const [key, validate] of Object.entries(validationRules)) {
-    if (!validate(options[key])) {
-      throw new SanitizeError(`${key} is invalid`, 'type_error');
+  for (const [key, validator] of Object.entries(validators)) {
+    if (!validator(options[key])) {
+      throw new FastifyMongoSanitizeError(`Invalid configuration: ${key}`, 'type_error');
     }
   }
 };
 
-const sanitizeRequest = (request, options) => {
-  const { sanitizeObjects, customSanitizer, enableLogs } = options;
-
-  for (const key of sanitizeObjects) {
-    if (request[key]) {
-      try {
-        const originalData = request[key];
-        const sanitizedData = customSanitizer ? customSanitizer(originalData) : sanitize(originalData, options);
-
-        request[key] = sanitizedData;
-
-        if (enableLogs) {
-          request.log.info({
-            msg: `Sanitized ${key}`,
-            original: originalData,
-            sanitized: sanitizedData,
-          });
-        }
-      } catch (error) {
-        request.log.error({
-          msg: `Failed to sanitize ${key}`,
-          error: error.message,
-        });
-        throw error;
-      }
-    }
+const fastifyMongoSanitize = (fastify, options, done) => {
+  if (!isPlainObject(options)) {
+    throw new FastifyMongoSanitizeError('Options must be an object', 'type_error');
   }
-};
 
-const mongoSanitize = (fastify, options, done) => {
-  if (typeof options !== 'object') throw new SanitizeError('Options must be an object', 'type_error');
-  const opts = Object.assign({}, DEFAULT_OPTIONS, options);
+  const config = { ...DEFAULT_OPTIONS, ...options };
+  validateOptions(config);
 
-  validateOptions(opts);
-
-  const skipRoutes = new Set(opts.skipRoutes);
+  const skipRoutes = new Set(config.skipRoutes);
 
   fastify.decorateRequest('sanitize', function () {
-    sanitizeRequest(this, opts);
+    handleRequest(this, config);
   });
 
-  if (opts.mode === 'auto' || opts.mode === 'route') {
+  if (config.mode === 'auto' || config.mode === 'route') {
     fastify.addHook('preHandler', (request, reply, done) => {
-      if (skipRoutes.has(request.routerPath)) {
-        return done();
-      }
-
-      if (opts.mode === 'route' && !request.routeOptions.sanitize) {
-        return done();
-      }
+      if (skipRoutes.has(request.routerPath)) return done();
+      if (config.mode === 'route' && !request.routeOptions?.sanitize) return done();
 
       try {
-        sanitizeRequest(request, opts);
+        handleRequest(request, config);
         done();
       } catch (error) {
         done(error);
@@ -271,19 +218,19 @@ const mongoSanitize = (fastify, options, done) => {
     });
   }
 
-  if (opts.mode === 'route') {
+  if (config.mode === 'route') {
     fastify.decorateRequest('routeOptions', null);
     fastify.addHook('onRoute', (routeOptions) => {
-      if (routeOptions.sanitize === undefined) {
-        routeOptions.sanitize = false;
-      }
+      routeOptions.sanitize ??= false;
     });
   }
 
   done();
 };
 
-module.exports = fp(mongoSanitize, {
+module.exports = fp(fastifyMongoSanitize, {
   name: 'fastify-mongo-sanitize',
   fastify: '>=4.x.x',
 });
+module.exports.default = fastifyMongoSanitize;
+module.exports.fastifyMongoSanitize = fastifyMongoSanitize;
