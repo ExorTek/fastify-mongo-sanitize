@@ -126,3 +126,9 @@ fastify.register(require('fastify-mongo-sanitize'), {
 - The `customSanitizer` function should be thoroughly tested before use in production
 - String length limiting (`maxLength`) only applies to string values, not keys
 - Array options are applied after all other sanitization steps
+
+## License
+
+**[MIT](https://github.com/ExorTek/fastify-mongo-sanitize/blob/master/LICENSE)**<br>
+
+Copyright © 2024 ExorTek
