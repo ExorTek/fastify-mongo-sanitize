@@ -1,7 +1,32 @@
-import { FastifyInstance } from 'fastify';
-import { FastifyMongoSanitizeOptions } from './index';
+import type { FastifyInstance } from 'fastify';
+import fastifyMongoSanitize, { FastifyMongoSanitizeOptions, FastifyMongoSanitizeError } from './index';
 
-declare const Fastify: () => FastifyInstance;
-declare const mongoSanitizePlugin: FastifyMongoSanitizeOptions;
+declare const instance: FastifyInstance;
 
-export { Fastify, mongoSanitizePlugin };
+instance.register(fastifyMongoSanitize);
+
+instance.register(fastifyMongoSanitize, {
+  replaceWith: '',
+  sanitizeObjects: ['body', 'params', 'query'],
+  mode: 'auto',
+  skipRoutes: ['/health'],
+  customSanitizer: null,
+  recursive: true,
+  removeEmpty: false,
+  patterns: [/test/g],
+  allowedKeys: ['allowed'],
+  deniedKeys: ['denied'],
+  stringOptions: {
+    trim: true,
+    lowercase: true,
+    maxLength: 100,
+  },
+  arrayOptions: {
+    filterNull: true,
+    distinct: true,
+  },
+} satisfies FastifyMongoSanitizeOptions);
+
+new FastifyMongoSanitizeError('test error', 'test_type');
+
+export { fastifyMongoSanitize, FastifyMongoSanitizeOptions, FastifyMongoSanitizeError };

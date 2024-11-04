@@ -3,10 +3,9 @@ import type { FastifyPluginCallback } from 'fastify';
 export interface FastifyMongoSanitizeOptions {
   replaceWith?: string;
   sanitizeObjects?: ('body' | 'params' | 'query')[];
-  enableLogs?: boolean;
-  mode?: 'auto' | 'manual' | 'route';
+  mode?: 'auto' | 'manual';
   skipRoutes?: string[];
-  customSanitizer?: (data: any) => any;
+  customSanitizer?: ((data: any) => any) | null;
   recursive?: boolean;
   removeEmpty?: boolean;
   patterns?: RegExp[];
@@ -30,5 +29,6 @@ declare class FastifyMongoSanitizeError extends Error {
 }
 
 declare const fastifyMongoSanitize: FastifyPluginCallback<FastifyMongoSanitizeOptions>;
+
 export default fastifyMongoSanitize;
 export { FastifyMongoSanitizeError, fastifyMongoSanitize };
