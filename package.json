@@ -6,7 +6,7 @@
   "type": "commonjs",
   "types": "types/index.d.ts",
   "scripts": {
-    "format": "prettier --write .",
+    "format": "prettier --write \"**/*.{js,ts,json}\"",
     "test:tsd": "tsd",
     "test:node": "node --test"
   },
@@ -51,5 +51,9 @@
   },
   "dependencies": {
     "fastify-plugin": "^5.0.1"
-  }
+  },
+  "files": [
+    "index.js",
+    "types/index.d.ts"
+  ]
 }
