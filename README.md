@@ -1,6 +1,7 @@
 # @exortek/fastify-mongo-sanitize
 
-A comprehensive Fastify plugin designed to protect your MongoDB queries from injection attacks by sanitizing request data. This plugin provides flexible sanitization options for request bodies, parameters, and query strings.
+A comprehensive Fastify plugin designed to protect your MongoDB queries from injection attacks by sanitizing request
+data. This plugin provides flexible sanitization options for request bodies, parameters, and query strings.
 
 ### Compatibility
 
@@ -8,7 +9,6 @@ A comprehensive Fastify plugin designed to protect your MongoDB queries from inj
 |----------------|:---------------:|
 | `^1.x`         |     `^4.x`      |
 | `^1.x`         |     `^5.x`      |
-
 
 ### Key Features
 
@@ -53,24 +53,25 @@ fastify.listen(3000, (err, address) => {
 
 # Configuration Options
 
-The plugin accepts various configuration options to customize its behavior. Here's a detailed breakdown of all available options:
+The plugin accepts various configuration options to customize its behavior. Here's a detailed breakdown of all available
+options:
 
 ## Core Options
 
-| Option            | Type           | Default                       | Description                                                                                                                                                                                                                                                                               |
-|-------------------|----------------|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `replaceWith`     | string         | `''`                          | The string to replace the matched patterns with. Default is an empty string. If you want to replace the matched patterns with a different string, you can set this option.                                                                                                                |
-| `sanitizeObjects` | array          | `['body', 'params', 'query']` | The request properties to sanitize. Default is `['body', 'params', 'query']`. You can specify any request property that you want to sanitize. It must be an object.                                                                                                                       |
-| `mode`            | string         | `'auto'`                      | The mode of operation. Default is 'auto'. You can set this option to 'auto', 'manual'. If you set it to 'auto', the plugin will automatically sanitize the request objects. If you set it to 'manual', you can sanitize the request objects manually using the request.sanitize() method. |
-| `skipRoutes`      | array          | `[]`                          | An array of routes to skip. Default is an empty array. If you want to skip certain routes from sanitization, you can specify the routes here. The routes must be in the format `/path`. For example, `['/health', '/metrics']`.                                                           |
-| `customSanitizer` | function\|null | `null`                        | A custom sanitizer function. Default is null. If you want to use a custom sanitizer function, you can specify it here. The function must accept two arguments: the original data and the options object. It must return the sanitized data.                                               |
-| `recursive`       | boolean        | `true`                        | Enable recursive sanitization. Default is true. If you want to recursively sanitize the nested objects, you can set this option to true.                                                                                                                                                  |
-| `removeEmpty`     | boolean        | `false`                       | Remove empty values. Default is false. If you want to remove empty values after sanitization, you can set this option to true.                                                                                                                                                            |
-| `patterns`        | array          | `PATTERNS`                    | An array of patterns to match. Default is an array of patterns that match illegal characters and sequences. You can specify your own patterns if you want to match different characters or sequences. Each pattern must be a regular expression.                                          |
-| `allowedKeys`     | array\|null    | `null`                        | An array of allowed keys. Default is null. If you want to allow only certain keys in the object, you can specify the keys here. The keys must be strings. If a key is not in the allowedKeys array, it will be removed.                                                                   |
-| `deniedKeys`      | array\|null    | `null`                        | An array of denied keys. Default is null. If you want to deny certain keys in the object, you can specify the keys here. The keys must be strings. If a key is in the deniedKeys array, it will be removed.                                                                               |
-| `stringOptions`   | object         | `{}`                          | An object that controls string sanitization behavior. Default is an empty object. You can specify the following options: `trim`, `lowercase`, `maxLength`.                                                                                                                                |
-| `arrayOptions`    | object         | `{}`                          | An object that controls array sanitization behavior. Default is an empty object. You can specify the following options: `filterNull`, `distinct`.                                                                                                                                         |    
+| Option            | Type           | Default                                            | Description                                                                                                                                                                                                                                                                               |
+|-------------------|----------------|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `replaceWith`     | string         | `''`                                               | The string to replace the matched patterns with. Default is an empty string. If you want to replace the matched patterns with a different string, you can set this option.                                                                                                                |
+| `sanitizeObjects` | array          | `['body', 'params', 'query']`                      | The request properties to sanitize. Default is `['body', 'params', 'query']`. You can specify any request property that you want to sanitize. It must be an object.                                                                                                                       |
+| `mode`            | string         | `'auto'`                                           | The mode of operation. Default is 'auto'. You can set this option to 'auto', 'manual'. If you set it to 'auto', the plugin will automatically sanitize the request objects. If you set it to 'manual', you can sanitize the request objects manually using the request.sanitize() method. |
+| `skipRoutes`      | array          | `[]`                                               | An array of routes to skip. Default is an empty array. If you want to skip certain routes from sanitization, you can specify the routes here. The routes must be in the format `/path`. For example, `['/health', '/metrics']`.                                                           |
+| `customSanitizer` | function\|null | `null`                                             | A custom sanitizer function. Default is null. If you want to use a custom sanitizer function, you can specify it here. The function must accept two arguments: the original data and the options object. It must return the sanitized data.                                               |
+| `recursive`       | boolean        | `true`                                             | Enable recursive sanitization. Default is true. If you want to recursively sanitize the nested objects, you can set this option to true.                                                                                                                                                  |
+| `removeEmpty`     | boolean        | `false`                                            | Remove empty values. Default is false. If you want to remove empty values after sanitization, you can set this option to true.                                                                                                                                                            |
+| `patterns`        | array          | `PATTERNS`                                         | An array of patterns to match. Default is an array of patterns that match illegal characters and sequences. You can specify your own patterns if you want to match different characters or sequences. Each pattern must be a regular expression.                                          |
+| `allowedKeys`     | array\|null    | `null`                                             | An array of allowed keys. Default is null. If you want to allow only certain keys in the object, you can specify the keys here. The keys must be strings. If a key is not in the allowedKeys array, it will be removed.                                                                   |
+| `deniedKeys`      | array\|null    | `null`                                             | An array of denied keys. Default is null. If you want to deny certain keys in the object, you can specify the keys here. The keys must be strings. If a key is in the deniedKeys array, it will be removed.                                                                               |
+| `stringOptions`   | object         | `{ trim: false,lowercase: false,maxLength: null }` | An object that controls string sanitization behavior. Default is an empty object. You can specify the following options: `trim`, `lowercase`, `maxLength`.                                                                                                                                |
+| `arrayOptions`    | object         | `{ filterNull: false, distinct: false}`            | An object that controls array sanitization behavior. Default is an empty object. You can specify the following options: `filterNull`, `distinct`.                                                                                                                                         |    
 
 ## String Options
 
