@@ -214,20 +214,6 @@ const validateOptions = (options) => {
   }
 };
 
-/**
- * Checks if a value contains potentially malicious patterns
- * @param {*} value - Value to check
- * @param {RegExp[]} patterns - Patterns to check against
- * @returns {boolean} True if injection attempt detected
- */
-const hasInjection = (value, patterns) => {
-  if (isString(value)) return patterns.some((pattern) => pattern.test(value));
-  if (isArray(value)) return value.some((item) => hasInjection(item, patterns));
-  if (isPlainObject(value))
-    return Object.entries(value).some(([key, val]) => hasInjection(key, patterns) || hasInjection(val, patterns));
-
-  return false;
-};
 
 /**
  * Handles request sanitization
