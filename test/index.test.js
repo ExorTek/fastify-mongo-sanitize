@@ -247,4 +247,83 @@ for (const version of fastifyVersions) {
 
     await fastify.close();
   });
+
+  test(`should remove matches body ${name}`, async () => {
+    const fastify = Fastify();
+    fastify.register(mongoSanitizePlugin, {
+      removeMatches: true,
+      sanitizeObjects: ['body'],
+    });
+
+    fastify.post('/remove-matches', async (request, reply) => {
+      return request.body;
+    });
+
+    const response = await fastify.inject({
+      method: 'POST',
+      url: '/remove-matches',
+      payload: {
+        username: '$admin',
+        email: 'mail@mail.com',
+        password: '$ecret',
+        role: '$super',
+      },
+    });
+
+    assert.strictEqual(response.statusCode, 200);
+    const result = response.json();
+    assert.deepStrictEqual(result, {
+      email: 'mail@mail.com',
+    });
+  });
+
+  test(`should remove matches query ${name}`, async () => {
+    const fastify = Fastify();
+    fastify.register(mongoSanitizePlugin, {
+      removeMatches: true,
+      sanitizeObjects: ['query'],
+    });
+
+    fastify.get('/remove-matches', async (request, reply) => {
+      return request.query;
+    });
+
+    const response = await fastify.inject({
+      method: 'GET',
+      url: '/remove-matches',
+      query: {
+        username: '$admin',
+        email: 'mail@mail.com',
+        password: '$ecret',
+        role: '$super',
+      },
+    });
+
+    assert.strictEqual(response.statusCode, 200);
+    const result = response.json();
+    assert.deepStrictEqual(result, {
+      email: 'mail@mail.com',
+    });
+  });
+
+  test(`should remove matches params ${name}`, async () => {
+    const fastify = Fastify();
+    fastify.register(mongoSanitizePlugin, {
+      removeMatches: true,
+      sanitizeObjects: ['params'],
+    });
+
+    fastify.get('/remove-matches/:id', async (request, reply) => {
+      return request.params;
+    });
+
+    const response = await fastify.inject({
+      method: 'GET',
+      url: '/remove-matches/$123',
+    });
+
+    assert.strictEqual(response.statusCode, 200);
+    const result = response.json();
+    assert.deepStrictEqual(result, {});
+  });
 }
