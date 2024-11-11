@@ -20,6 +20,7 @@ const PATTERNS = Object.freeze([
  */
 const DEFAULT_OPTIONS = Object.freeze({
   replaceWith: '', // The string to replace the matched patterns with. Default is an empty string. If you want to replace the matched patterns with a different string, you can set this option.
+  removeMatches: false, // Remove the matched patterns. Default is false. If you want to remove the matched patterns instead of replacing them, you can set this option to true.
   sanitizeObjects: ['body', 'params', 'query'], // The request properties to sanitize. Default is ['body', 'params', 'query']. You can specify any request property that you want to sanitize. It must be an object.
   mode: 'auto', // The mode of operation. Default is 'auto'. You can set this option to 'auto', 'manual'. If you set it to 'auto', the plugin will automatically sanitize the request objects. If you set it to 'manual', you can sanitize the request objects manually using the request.sanitize() method.
   skipRoutes: [], // An array of routes to skip. Default is an empty array. If you want to skip certain routes from sanitization, you can specify the routes here. The routes must be in the format '/path'. For example, ['/health', '/metrics'].
@@ -27,8 +28,8 @@ const DEFAULT_OPTIONS = Object.freeze({
   recursive: true, // Enable recursive sanitization. Default is true. If you want to recursively sanitize the nested objects, you can set this option to true.
   removeEmpty: false, // Remove empty values. Default is false. If you want to remove empty values after sanitization, you can set this option to true.
   patterns: PATTERNS, // An array of patterns to match. Default is an array of patterns that match illegal characters and sequences. You can specify your own patterns if you want to match different characters or sequences. Each pattern must be a regular expression.
-  allowedKeys: null, // An array of allowed keys. Default is null. If you want to allow only certain keys in the object, you can specify the keys here. The keys must be strings. If a key is not in the allowedKeys array, it will be removed.
-  deniedKeys: null, // An array of denied keys. Default is null. If you want to deny certain keys in the object, you can specify the keys here. The keys must be strings. If a key is in the deniedKeys array, it will be removed.
+  allowedKeys: [], // An array of allowed keys. Default is array. If you want to allow only certain keys in the object, you can specify the keys here. The keys must be strings. If a key is not in the allowedKeys array, it will be removed.
+  deniedKeys: [], // An array of denied keys. Default is array. If you want to deny certain keys in the object, you can specify the keys here. The keys must be strings. If a key is in the deniedKeys array, it will be removed.
   stringOptions: {
     // String sanitization options.
     trim: false, // Trim whitespace. Default is false. If you want to trim leading and trailing whitespace from the string, you can set this option to true.
@@ -41,6 +42,13 @@ const DEFAULT_OPTIONS = Object.freeze({
     distinct: false, // Remove duplicate values. Default is false. If you want to remove duplicate values from the array, you can set this option to true.
   },
 });
+
+/**
+ * Checks if value is a valid email address
+ * @param {string} val - Value to check
+ * @returns {boolean} True if value is a valid email address
+ */
+const isEmail = (val) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i.test(val);
 
 /**
  * Checks if value is a string
@@ -109,7 +117,7 @@ class FastifyMongoSanitizeError extends Error {
  * @returns {string} Sanitized string
  */
 const sanitizeString = (str, options, isValue = false) => {
-  if (!isString(str)) return str;
+  if (!isString(str) || isEmail(str)) return str;
 
   const { replaceWith, patterns, stringOptions } = options;
 
@@ -117,8 +125,7 @@ const sanitizeString = (str, options, isValue = false) => {
 
   if (stringOptions.trim) result = result.trim();
   if (stringOptions.lowercase) result = result.toLowerCase();
-  if (stringOptions.maxLength && result.length > stringOptions.maxLength && isValue)
-    result = result.slice(0, stringOptions.maxLength);
+  if (stringOptions.maxLength && isValue) result = result.slice(0, stringOptions.maxLength);
 
   return result;
 };
@@ -152,16 +159,28 @@ const sanitizeArray = (arr, options) => {
 const sanitizeObject = (obj, options) => {
   if (!isPlainObject(obj)) throw new FastifyMongoSanitizeError('Input must be an object', 'type_error');
 
-  const { removeEmpty, allowedKeys, deniedKeys } = options;
+  const { removeEmpty, allowedKeys, deniedKeys, removeMatches, patterns } = options;
 
   return Object.entries(obj).reduce((acc, [key, value]) => {
     if (allowedKeys?.length && !allowedKeys.includes(key)) return acc;
+
     if (deniedKeys?.length && deniedKeys.includes(key)) return acc;
 
     const sanitizedKey = sanitizeString(key, options, false);
+
+    if (isString(value) && isEmail(value)) {
+      acc[sanitizedKey] = value;
+      return acc;
+    }
+
+    if (removeMatches && patterns.some((pattern) => pattern.test(key))) return acc;
+
     if (removeEmpty && !sanitizedKey) return acc;
 
+    if (removeMatches && isString(value) && patterns.some((pattern) => pattern.test(value))) return acc;
+
     const sanitizedValue = sanitizeValue(value, options, true);
+
     if (removeEmpty && !sanitizedValue) return acc;
 
     acc[sanitizedKey] = sanitizedValue;
@@ -173,13 +192,11 @@ const sanitizeObject = (obj, options) => {
  * Sanitizes a value according to its type and provided options
  * @param {*} value - Value to sanitize
  * @param {Object} options - Sanitization options
- * @param {boolean} isValue - Whether value is a value or key
+ * @param {boolean} [isValue=false] - Whether value is a value or key
  * @returns {*} Sanitized value
  */
 const sanitizeValue = (value, options, isValue) => {
-  if (!value) return value;
-  if (isPrimitive(value)) return value;
-  if (isDate(value)) return value;
+  if (!value || isPrimitive(value) || isDate(value)) return value;
   if (isPlainObject(value)) return sanitizeObject(value, options);
   if (isArray(value)) return sanitizeArray(value, options);
   if (isString(value)) return sanitizeString(value, options, isValue);
@@ -194,6 +211,7 @@ const sanitizeValue = (value, options, isValue) => {
 const validateOptions = (options) => {
   const validators = {
     replaceWith: isString,
+    removeMatches: isPrimitive,
     sanitizeObjects: isArray,
     mode: (value) => ['auto', 'manual'].includes(value),
     skipRoutes: isArray,
@@ -214,7 +232,6 @@ const validateOptions = (options) => {
   }
 };
 
-
 /**
  * Handles request sanitization
  * @param {Object} request - Fastify request object
@@ -223,10 +240,12 @@ const validateOptions = (options) => {
 const handleRequest = (request, options) => {
   const { sanitizeObjects, customSanitizer } = options;
 
-  for (const sanitizeObject1 of sanitizeObjects) {
-    if (request[sanitizeObject1]) {
-      const originalData = request[sanitizeObject1];
-      request[sanitizeObject1] = customSanitizer ? customSanitizer(originalData) : sanitizeValue(originalData, options);
+  for (const sanitizeObject of sanitizeObjects) {
+    if (request[sanitizeObject]) {
+      const originalRequest = Object.assign({}, request[sanitizeObject]);
+      request[sanitizeObject] = customSanitizer
+        ? customSanitizer(originalRequest)
+        : sanitizeValue(originalRequest, options);
     }
   }
 };
