@@ -2,6 +2,7 @@ import type { FastifyPluginCallback } from 'fastify';
 
 export interface FastifyMongoSanitizeOptions {
   replaceWith?: string;
+  removeMatches?: boolean;
   sanitizeObjects?: ('body' | 'params' | 'query')[];
   mode?: 'auto' | 'manual';
   skipRoutes?: string[];

@@ -7,6 +7,7 @@ instance.register(fastifyMongoSanitize);
 
 instance.register(fastifyMongoSanitize, {
   replaceWith: '',
+  removeMatches: true,
   sanitizeObjects: ['body', 'params', 'query'],
   mode: 'auto',
   skipRoutes: ['/health'],
