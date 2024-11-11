@@ -19,6 +19,9 @@ data. This plugin provides flexible sanitization options for request bodies, par
 - Configurable string and array handling options
 - Skip routes functionality
 - Custom sanitizer support
+- **[NEW]** Email address preservation during sanitization
+- **[NEW]** Option to remove matched patterns entirely
+- **[NEW]** Enhanced security with request object cloning
 
 ## Installation
 
@@ -61,6 +64,7 @@ options:
 | Option            | Type           | Default                                            | Description                                                                                                                                                                                                                                                                               |
 |-------------------|----------------|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `replaceWith`     | string         | `''`                                               | The string to replace the matched patterns with. Default is an empty string. If you want to replace the matched patterns with a different string, you can set this option.                                                                                                                |
+| 'removeMatches'   | boolean        | `false`                                            | Remove the matched patterns. Default is false. If you want to remove the matched patterns instead of replacing them, you can set this option to true.                                                                                                                                     |
 | `sanitizeObjects` | array          | `['body', 'params', 'query']`                      | The request properties to sanitize. Default is `['body', 'params', 'query']`. You can specify any request property that you want to sanitize. It must be an object.                                                                                                                       |
 | `mode`            | string         | `'auto'`                                           | The mode of operation. Default is 'auto'. You can set this option to 'auto', 'manual'. If you set it to 'auto', the plugin will automatically sanitize the request objects. If you set it to 'manual', you can sanitize the request objects manually using the request.sanitize() method. |
 | `skipRoutes`      | array          | `[]`                                               | An array of routes to skip. Default is an empty array. If you want to skip certain routes from sanitization, you can specify the routes here. The routes must be in the format `/path`. For example, `['/health', '/metrics']`.                                                           |
@@ -101,12 +105,13 @@ The `arrayOptions` object controls array sanitization behavior:
 ```javascript
 const fastify = require('fastify')();
 
-fastify.register(require('fastify-mongo-sanitize'), {
+fastify.register(require('@exortek/fastify-mongo-sanitize'), {
   replaceWith: '_',
   mode: 'manual',
   skipRoutes: ['/health', '/metrics'],
   recursive: true,
   removeEmpty: true,
+  removeMatches: true, // New option to remove dangerous patterns completely
   stringOptions: {
     trim: true,
     maxLength: 100
