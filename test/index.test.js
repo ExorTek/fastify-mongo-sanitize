@@ -326,4 +326,72 @@ for (const version of fastifyVersions) {
     const result = response.json();
     assert.deepStrictEqual(result, {});
   });
+
+  test(`should skip routes with different slash and query variants ${name}`, async () => {
+    const fastify = Fastify();
+
+    fastify.register(mongoSanitizePlugin, {
+      skipRoutes: ['/path', '/'],
+    });
+
+    fastify.post('/path', async (request, reply) => request.body);
+    fastify.post('/path/', async (request, reply) => request.body); // Trailing slash için de ekle!
+    fastify.post('/', async (request, reply) => request.body);
+
+    let res = await fastify.inject({
+      method: 'POST',
+      url: '/path',
+      payload: { $foo: 'bar' },
+    });
+    assert.deepStrictEqual(res.json(), { $foo: 'bar' });
+
+    res = await fastify.inject({
+      method: 'POST',
+      url: '/path?test=123',
+      payload: { $foo: 'bar' },
+    });
+    assert.deepStrictEqual(res.json(), { $foo: 'bar' });
+
+    res = await fastify.inject({
+      method: 'POST',
+      url: '/path/',
+      payload: { $foo: 'bar' },
+    });
+    assert.deepStrictEqual(res.json(), { $foo: 'bar' });
+
+    res = await fastify.inject({
+      method: 'POST',
+      url: '/',
+      payload: { $foo: 'bar' },
+    });
+    assert.deepStrictEqual(res.json(), { $foo: 'bar' });
+
+    res = await fastify.inject({
+      method: 'POST',
+      url: '/?q=1',
+      payload: { $foo: 'bar' },
+    });
+    assert.deepStrictEqual(res.json(), { $foo: 'bar' });
+
+    await fastify.close();
+  });
+
+  test(`should NOT skip routes that are not in skipRoutes (should sanitize) ${name}`, async () => {
+    const fastify = Fastify();
+
+    fastify.register(mongoSanitizePlugin, {
+      skipRoutes: ['/skipped'],
+    });
+
+    fastify.post('/sanitized', async (request, reply) => request.body);
+
+    const res = await fastify.inject({
+      method: 'POST',
+      url: '/sanitized?foo=1',
+      payload: { $evil: '123', good: '$ok' },
+    });
+    assert.deepStrictEqual(res.json(), { evil: '123', good: 'ok' });
+
+    await fastify.close();
+  });
 }
