@@ -189,6 +189,18 @@ const sanitizeObject = (obj, options) => {
 };
 
 /**
+ * Cleans a URL by removing leading and trailing slashes
+ * @param {string} url - URL to clean
+ * @returns {string|null} Cleaned URL or null if input is invalid
+ */
+const cleanUrl = (url) => {
+  if (typeof url !== 'string' || !url) return null;
+  const [path] = url.split(/[?#]/);
+  const trimmed = path.replace(/^\/+|\/+$/g, '');
+  return trimmed ? '/' + trimmed : null;
+};
+
+/**
  * Sanitizes a value according to its type and provided options
  * @param {*} value - Value to sanitize
  * @param {Object} options - Sanitization options
@@ -261,7 +273,7 @@ const fastifyMongoSanitize = (fastify, options, done) => {
 
   validateOptions(opt);
 
-  const skipRoutes = new Set(opt.skipRoutes);
+  const skipRoutes = new Set((opt.skipRoutes || []).map(cleanUrl));
 
   if (opt.mode === 'manual') {
     fastify.decorateRequest('sanitize', function (options) {
@@ -271,7 +283,10 @@ const fastifyMongoSanitize = (fastify, options, done) => {
 
   if (opt.mode === 'auto') {
     fastify.addHook('preHandler', (request, reply, done) => {
-      if (skipRoutes.has(request.url)) return done();
+      if (skipRoutes.size) {
+        const url = cleanUrl(request.url);
+        if (skipRoutes.has(url)) return done();
+      }
       handleRequest(request, opt);
       done();
     });
