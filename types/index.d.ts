@@ -3,10 +3,12 @@ import type { FastifyPluginCallback } from 'fastify';
 export interface FastifyMongoSanitizeOptions {
   replaceWith?: string;
   removeMatches?: boolean;
-  sanitizeObjects?: ('body' | 'params' | 'query')[];
+  removeKeyMatches?: boolean;
+  removeValueMatches?: boolean;
+  sanitizeObjects?: string[];
   mode?: 'auto' | 'manual';
   skipRoutes?: string[];
-  customSanitizer?: ((data: any) => any) | null;
+  customSanitizer?: (original: any, options: FastifyMongoSanitizeOptions) => any;
   recursive?: boolean;
   removeEmpty?: boolean;
   patterns?: RegExp[];
@@ -21,12 +23,26 @@ export interface FastifyMongoSanitizeOptions {
     filterNull?: boolean;
     distinct?: boolean;
   };
+  debug?: {
+    enabled?: boolean;
+    level?: 'silent' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+    logPatternMatches?: boolean;
+    logSanitizedValues?: boolean;
+    logSkippedRoutes?: boolean;
+  };
 }
 
 declare class FastifyMongoSanitizeError extends Error {
   constructor(message: string, type?: string);
   name: string;
   type: string;
+}
+
+import 'fastify';
+declare module 'fastify' {
+  interface FastifyRequest {
+    sanitize?(options?: FastifyMongoSanitizeOptions): void;
+  }
 }
 
 declare const fastifyMongoSanitize: FastifyPluginCallback<FastifyMongoSanitizeOptions>;

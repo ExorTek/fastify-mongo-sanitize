@@ -394,4 +394,30 @@ for (const version of fastifyVersions) {
 
     await fastify.close();
   });
+
+  test('should not sanitize nested objects/arrays if recursive is false', async () => {
+    const fastify = require('fastify')();
+    fastify.register(mongoSanitizePlugin, {
+      recursive: false,
+    });
+
+    fastify.post('/recursive-false', async (request, reply) => {
+      return request.body;
+    });
+
+    const response = await fastify.inject({
+      method: 'POST',
+      url: '/recursive-false',
+      payload: {
+        username: '$admin',
+        nested: { $danger: 'hack' },
+        arr: [{ $hidden: 'bad' }],
+      },
+    });
+    assert.deepStrictEqual(response.json(), {
+      username: 'admin',
+      nested: { $danger: 'hack' },
+      arr: [{ $hidden: 'bad' }],
+    });
+  });
 }

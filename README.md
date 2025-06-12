@@ -1,27 +1,29 @@
 # @exortek/fastify-mongo-sanitize
 
-A comprehensive Fastify plugin designed to protect your MongoDB queries from injection attacks by sanitizing request
-data. This plugin provides flexible sanitization options for request bodies, parameters, and query strings.
+A comprehensive Fastify plugin designed to protect your MongoDB queries from injection attacks by sanitizing request data.
+Flexible options for request bodies, parameters, and query strings.
+Supports JavaScript & TypeScript.
 
-### Compatibility
+
+## Compatibility
 
 | Plugin version | Fastify version |
 |----------------|:---------------:|
 | `^1.x`         |     `^4.x`      |
 | `^1.x`         |     `^5.x`      |
 
-### Key Features
+## Key Features
 
-- Automatic sanitization of potentially dangerous MongoDB operators and special characters.
-- Multiple operation modes (auto, manual)
+- Automatic sanitization of potentially dangerous MongoDB operators and special characters
+- Multiple operation modes (**auto**, **manual**)
+- **Recursive** or single-level sanitization control
 - Customizable sanitization patterns and replacement strategies
-- Support for nested objects and arrays
 - Configurable string and array handling options
-- Skip routes functionality
-- Custom sanitizer support
-- **[NEW]** Email address preservation during sanitization
-- **[NEW]** Option to remove matched patterns entirely
-- **[NEW]** Enhanced security with request object cloning
+- Skip routes functionality with normalization
+- Allowed/denied key whitelisting/blacklisting
+- **Custom sanitizer** function support
+- Full TypeScript types & Fastify request augmentation
+- Detailed debug and logging options
 
 ## Installation
 
@@ -35,6 +37,12 @@ OR
 yarn add @exortek/fastify-mongo-sanitize
 ```
 
+OR
+
+```bash
+pnpm add @exortek/fastify-mongo-sanitize
+```
+
 ## Usage
 
 Register the plugin with Fastify and specify the desired options.
@@ -45,12 +53,36 @@ const fastifyMongoSanitize = require('@exortek/fastify-mongo-sanitize');
 
 fastify.register(fastifyMongoSanitize);
 
-fastify.listen(3000, (err, address) => {
+fastify.post('/api', async (req, reply) => {
+  // sanitized request.body, request.query, and request.params
+  return req.body;
+});
+
+fastify.listen({ port: 3000 }, (err, address) => {
   if (err) {
     fastify.log.error(err);
     process.exit(1);
   }
-  fastify.log.info(`Server listening on ${address}`);
+  fastify.log.info(`Server listening at ${address}`);
+});
+```
+
+## TypeScript Usage
+
+```typescript
+import fastify from 'fastify';
+import mongoSanitize from '@exortek/fastify-mongo-sanitize';
+
+const app = fastify();
+
+app.register(mongoSanitize, {
+  recursive: false,
+  debug: { enabled: true, level: 'debug' },
+});
+
+app.post('/test', async (req, reply) => {
+  req.sanitize?.(); // TS'de otomatik olarak görünür!
+  return req.body;
 });
 ```
 
@@ -76,6 +108,7 @@ options:
 | `deniedKeys`      | array\|null    | `null`                                             | An array of denied keys. Default is null. If you want to deny certain keys in the object, you can specify the keys here. The keys must be strings. If a key is in the deniedKeys array, it will be removed.                                                                               |
 | `stringOptions`   | object         | `{ trim: false,lowercase: false,maxLength: null }` | An object that controls string sanitization behavior. Default is an empty object. You can specify the following options: `trim`, `lowercase`, `maxLength`.                                                                                                                                |
 | `arrayOptions`    | object         | `{ filterNull: false, distinct: false}`            | An object that controls array sanitization behavior. Default is an empty object. You can specify the following options: `filterNull`, `distinct`.                                                                                                                                         |    
+| `debug`           | object         | `{ enabled: false, level: 'info' }`                | Logging/debug options.                                                                                                                                                                                                                                                                    |    
 
 > **Note on skipRoutes matching:**  
 > All skipRoutes entries and request URLs are normalized before matching. This means:
@@ -115,25 +148,50 @@ The `arrayOptions` object controls array sanitization behavior:
 }
 ```
 
-## Example Configuration
+## Operation Modes
+
+### Mode: `auto`
+Sanitization is performed automatically on every request for the configured properties `(body, params, query)`.
+
+### Mode: `manual`
 
 ```javascript
-const fastify = require('fastify')();
+fastify.register(fastifyMongoSanitize, { mode: 'manual' });
 
+fastify.post('/api', async (req, reply) => {
+  req.sanitize(); // Manual trigger!
+  // ...
+});
+```
+
+## Recursive Option
+By default, `recursive` is `true`—all nested arrays and objects are sanitized.
+To only sanitize the first level (top-level keys/values), set:
+
+## Example Full Configuration
+
+```javascript
 fastify.register(require('@exortek/fastify-mongo-sanitize'), {
   replaceWith: '_',
   mode: 'manual',
   skipRoutes: ['/health', '/metrics'],
   recursive: true,
   removeEmpty: true,
-  removeMatches: true, // New option to remove dangerous patterns completely
+  removeMatches: true, // Remove dangerous patterns completely
   stringOptions: {
     trim: true,
-    maxLength: 100
+    maxLength: 100,
   },
   arrayOptions: {
     filterNull: true,
-    distinct: true
+    distinct: true,
+  },
+  debug: {
+    enabled: true,
+    level: 'debug',
+    logPatternMatches: true,
+    logSanitizedValues: true,
+    logSkippedRoutes: true,
   }
 });
 ```
@@ -147,8 +205,11 @@ fastify.register(require('@exortek/fastify-mongo-sanitize'), {
 - String length limiting (`maxLength`) only applies to string values, not keys
 - Array options are applied after all other sanitization steps
 
+> removeEmpty: Removes all falsy values ('', 0, false, null, undefined).
+> Adjust this behavior if you need to preserve values like 0 or false.
+
 ## License
 
 **[MIT](https://github.com/ExorTek/fastify-mongo-sanitize/blob/master/LICENSE)**<br>
 
-Copyright © 2024 ExorTek
+Copyright © 2025 ExorTek
