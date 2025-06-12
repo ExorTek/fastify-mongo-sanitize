@@ -67,7 +67,7 @@ options:
 | 'removeMatches'   | boolean        | `false`                                            | Remove the matched patterns. Default is false. If you want to remove the matched patterns instead of replacing them, you can set this option to true.                                                                                                                                     |
 | `sanitizeObjects` | array          | `['body', 'params', 'query']`                      | The request properties to sanitize. Default is `['body', 'params', 'query']`. You can specify any request property that you want to sanitize. It must be an object.                                                                                                                       |
 | `mode`            | string         | `'auto'`                                           | The mode of operation. Default is 'auto'. You can set this option to 'auto', 'manual'. If you set it to 'auto', the plugin will automatically sanitize the request objects. If you set it to 'manual', you can sanitize the request objects manually using the request.sanitize() method. |
-| `skipRoutes`      | array          | `[]`                                               | An array of routes to skip. Default is an empty array. If you want to skip certain routes from sanitization, you can specify the routes here. The routes must be in the format `/path`. For example, `['/health', '/metrics']`.                                                           |
+| `skipRoutes`      | array          | `[]`                                               | An array of routes to skip. All entries and incoming request paths are normalized (leading/trailing slashes removed, query and fragment ignored). For example, adding `'/health'` will skip `/health`, `/health/`, and `/health?ping=1`.                                                  |                                                        |
 | `customSanitizer` | function\|null | `null`                                             | A custom sanitizer function. Default is null. If you want to use a custom sanitizer function, you can specify it here. The function must accept two arguments: the original data and the options object. It must return the sanitized data.                                               |
 | `recursive`       | boolean        | `true`                                             | Enable recursive sanitization. Default is true. If you want to recursively sanitize the nested objects, you can set this option to true.                                                                                                                                                  |
 | `removeEmpty`     | boolean        | `false`                                            | Remove empty values. Default is false. If you want to remove empty values after sanitization, you can set this option to true.                                                                                                                                                            |
@@ -76,6 +76,21 @@ options:
 | `deniedKeys`      | array\|null    | `null`                                             | An array of denied keys. Default is null. If you want to deny certain keys in the object, you can specify the keys here. The keys must be strings. If a key is in the deniedKeys array, it will be removed.                                                                               |
 | `stringOptions`   | object         | `{ trim: false,lowercase: false,maxLength: null }` | An object that controls string sanitization behavior. Default is an empty object. You can specify the following options: `trim`, `lowercase`, `maxLength`.                                                                                                                                |
 | `arrayOptions`    | object         | `{ filterNull: false, distinct: false}`            | An object that controls array sanitization behavior. Default is an empty object. You can specify the following options: `filterNull`, `distinct`.                                                                                                                                         |    
+
+> **Note on skipRoutes matching:**  
+> All skipRoutes entries and request URLs are normalized before matching. This means:
+> - Trailing and leading slashes (`/path`, `/path/`, `///path//`) are treated as the same.
+> - Query strings and fragments are ignored (`/foo?bar=1`, `/foo#anchor` → `/foo`).
+>
+> For example, if you set `skipRoutes: ['/api/users']`, then all of the following will be skipped:
+> - `/api/users`
+> - `/api/users/`
+> - `/api/users?role=admin`
+> - `/api/users#tab`
+>
+> **Fastify's default behavior:**  
+> Fastify treats `/foo` and `/foo/` as different routes. This plugin normalizes skipRoutes for skipping purposes only.  
+> Make sure you have defined both routes in Fastify if you want both to respond.
 
 ## String Options
 
