@@ -44,10 +44,10 @@
   },
   "packageManager": "yarn@4.9.2",
   "devDependencies": {
-    "fastify": "npm:fastify@5.1.0",
-    "fastify4": "npm:fastify@4.28.1",
-    "prettier": "^3.3.3",
-    "tsd": "^0.31.2"
+    "fastify": "npm:fastify@5.3.3",
+    "fastify4": "npm:fastify@4.29.1",
+    "prettier": "^3.5.3",
+    "tsd": "^0.32.0"
   },
   "dependencies": {
     "fastify-plugin": "^5.0.1"
