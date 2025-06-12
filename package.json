@@ -1,6 +1,6 @@
 {
   "name": "@exortek/fastify-mongo-sanitize",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "MongoDB query sanitizer for Fastify",
   "main": "index.js",
   "type": "commonjs",
@@ -54,6 +54,9 @@
   },
   "files": [
     "index.js",
-    "types/index.d.ts"
+    "types/index.d.ts",
+    "constants.js",
+    "helpers.js",
+    "FastifyMongoSanitizeError.js"
   ]
 }
